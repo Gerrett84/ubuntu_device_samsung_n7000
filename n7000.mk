@@ -35,8 +35,8 @@ PRODUCT_PROPERTY_OVERRIDES += \
     ro.sf.lcd_density=320
 
 # Packages
-PRODUCT_PACKAGES += \
-    GalaxyNoteSettings
+#PRODUCT_PACKAGES += \
+#    GalaxyNoteSettings
 
 # Sensors
 PRODUCT_PACKAGES += \
