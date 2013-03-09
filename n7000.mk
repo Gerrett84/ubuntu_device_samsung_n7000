@@ -63,4 +63,9 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/init.gps.rc:root/init.gps.rc \
     $(LOCAL_PATH)/configs/gps.xml:system/etc/gps.xml
 
+# Ubuntu-Session
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/ubuntu/ubuntu-session:system/ubuntu-session \
+    $(LOCAL_PATH)/ubuntu/99ubuntu-session:system/etc/init.d/99ubuntu-session
+
 $(call inherit-product-if-exists, vendor/samsung/n7000/n7000-vendor.mk)
