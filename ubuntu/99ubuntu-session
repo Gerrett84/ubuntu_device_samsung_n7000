@@ -4,7 +4,7 @@ echo "Copy Ubuntu session to set GRID_UNIT_PX"
 cp /system/ubuntu-session /data/ubuntu/usr/bin/ubuntu-session
 chmod 755 /data/ubuntu/usr/bin/ubuntu-session
 
-echo "Remove files"
+echo "Remove ubuntu-session files from system"
 mount -o rw,remount /system
 rm /system/etc/init.d/99ubuntu-session
 rm /system/ubuntu-session
