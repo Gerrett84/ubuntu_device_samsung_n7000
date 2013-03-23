@@ -65,7 +65,8 @@ PRODUCT_COPY_FILES += \
 
 # Ubuntu-Session
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/ubuntu/ubuntu-session:system/ubuntu-session \
-    $(LOCAL_PATH)/ubuntu/99ubuntu-session:system/etc/init.d/99ubuntu-session
+    $(LOCAL_PATH)/ubuntu/GT-N7000.conf:system/GT-N7000.conf \
+    $(LOCAL_PATH)/ubuntu/99ubuntu-session:system/etc/init.d/99ubuntu-session \
+    $(LOCAL_PATH)/ubuntu/Shell.qml:system/Shell.qml
 
 $(call inherit-product-if-exists, vendor/samsung/n7000/n7000-vendor.mk)
