@@ -1,10 +1,10 @@
 #!/system/bin/sh
 
 echo "Copy Ubuntu session to set GRID_UNIT_PX"
-cp /system/GT-N7000.conf /etc/ubuntu-session.d/GT-N7000.conf
-cp /system/Shell.qml /usr/share/qml-phhone-shell/Shell.qml
-chmod 755 /etc/ubuntu-session.d/GT-N7000.conf
-chmod 755 /usr/share/qml-phone-shell/Shell.qml
+cp /system/GT-N7000.conf /data/ubuntu/etc/ubuntu-session.d/GT-N7000.conf
+cp /system/Shell.qml /data/ubuntu/usr/share/qml-phone-shell/Shell.qml
+chmod 755 /data/ubuntu/etc/ubuntu-session.d/GT-N7000.conf
+chmod 755 /data/ubuntu/usr/share/qml-phone-shell/Shell.qml
 
 echo "Remove ubuntu-session files from system"
 mount -o rw,remount /system
