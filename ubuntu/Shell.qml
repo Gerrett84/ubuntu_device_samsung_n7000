@@ -15,10 +15,9 @@
  */
 
 import QtQuick 2.0
+import Ubuntu.Application 0.1
 import Ubuntu.Components 0.1
 import "Dash"
-import "Applications"
-import "Applications/applications.js" as ApplicationsModel
 import "Greeter"
 import "Launcher"
 import "Panel"
@@ -55,38 +54,9 @@ FocusScope {
 
     property ListModel searchHistory: SearchHistoryModel {}
 
-    // if running in Hybris environment, can offload running app management to it, else we fake it
-    property var applicationManager
-    // whether or not "import Ubuntu.Application" would work
-    property bool importUbuntuApplicationAvailable: checkImportUbuntuApplicationAvailable()
-
-    /* Checks if the "Ubuntu.Application" plugin is available, and if so use it for application management.
-       Returns true if the plugin is available, false otherwise.
-
-       This works around the lack of conditional imports in QML.
-       Ref.: https://bugreports.qt-project.org/browse/QTBUG-16854
-    */
-    function checkImportUbuntuApplicationAvailable() {
-        try {
-            var object = Qt.createQmlObject('import Ubuntu.Application 0.1; import QtQuick 2.0; QtObject {}', shell, "");
-            object.destroy();
-            return true;
-        } catch (error) {
-            console.log("NOTICE: The Ubuntu.Application plugin was not found, so all window management is emulated in this application.\n\
-This emulation will not be perfect, you *must* not trust it. To be safe always test on a device with Ubuntu.Application available.");
-            return false;
-        }
-    }
+    property var applicationManager: ApplicationManagerWrapper {}
 
     Component.onCompleted: {
-        var component;
-        if (!importUbuntuApplicationAvailable) {
-            component = Qt.createComponent("Components/ApplicationManagerFake.qml");
-        } else {
-            component = Qt.createComponent("Components/ApplicationManagerWrapper.qml");
-        }
-
-        applicationManager = component.createObject(shell);
         applicationManager.sideStageEnabled = Qt.binding(function() { return sideStage.enabled })
 
         // FIXME: if application focused before shell starts, shell draws on top of it only.
@@ -121,7 +91,7 @@ This emulation will not be perfect, you *must* not trust it. To be safe always t
             if (application == null) {
                 return;
             }
-            if (application.stage == ApplicationsModel.MainStage || !sideStage.enabled) {
+            if (application.stage == ApplicationInfo.MainStage || !sideStage.enabled) {
                 mainStage.activateApplication(desktopFile);
             } else {
                 sideStage.activateApplication(desktopFile);
@@ -130,27 +100,19 @@ This emulation will not be perfect, you *must* not trust it. To be safe always t
         }
     }
 
-    function activateDash() {
-        dash.show()
-    }
-
-
     VolumeControl {
-        id: _volumeControl
+        id: volumeControl
     }
 
-    Keys.onVolumeUpPressed: _volumeControl.volumeUp()
-    Keys.onVolumeDownPressed: _volumeControl.volumeDown()
-//    Keys.onBackPressed: hud.show()
-    // Back = (Home 0x01000061)
-    // Menu = (Menu 0x01000055)
+    Keys.onVolumeUpPressed: volumeControl.volumeUp()
+    Keys.onVolumeDownPressed: volumeControl.volumeDown()
 
     Keys.onReleased: {
-
         if (event.key == Qt.Key_PowerOff) {
             greeter.show()
         }
 
+    // i777 Menu Key (both i9100 and i777)
         if (event.key == Qt.Key_Menu) {
             if (hud.shown == true) {
                 hud.hide()
@@ -160,34 +122,27 @@ This emulation will not be perfect, you *must* not trust it. To be safe always t
             }
         }
 
+        // i777 Home Key
         if (event.key == Qt.Key_Back) {
-            //parametrizedActionsPage.buttons.backButton.backPressed()
+            // Here's where I left off. I'm trying to mimic the close button in ToolBar.qml
+            // actionTriggered(HudClient.QuitToolBarAction)
+
+            // For now we'll let the home button lock the screen.
             greeter.show()
         }
 
+        // I'm using these to probe for the other two keys on the i777. So far no luck :(
         if (event.key == Qt.Key_Search) {
             greeter.show()
         }
 
         if (event.key == Qt.Key_Home) {
-            greeter.show()
+            hud.show()
         }
 
         if (event.key == Qt.Key_Period) {
             greeter.show()
         }
-
-
-    }
-
-    // for Desktop only, to emulate window management when hybris not available
-    Item {
-        id: fakeWindowContainer
-
-        property real sideStageWidth: sideStage.width
-
-        anchors.fill: parent
-        z: -1000
     }
 
     Item {
@@ -310,6 +265,10 @@ This emulation will not be perfect, you *must* not trust it. To be safe always t
                 shouldUseScreenshots: !fullyShown
                 rightEdgeEnabled: !sideStage.enabled
 
+                applicationManager: shell.applicationManager
+                rightEdgeDraggingAreaWidth: shell.edgeSize
+                normalApplicationY: shell.panelHeight
+
                 shown: true
                 function show() {
                     stages.show();
@@ -332,6 +291,10 @@ This emulation will not be perfect, you *must* not trust it. To be safe always t
 
             SideStage {
                 id: sideStage
+
+                applicationManager: shell.applicationManager
+                rightEdgeDraggingAreaWidth: shell.edgeSize
+                normalApplicationY: shell.panelHeight
 
                 onShownChanged: {
                     if (!shown && mainStage.applications.count == 0) {
@@ -418,7 +381,7 @@ This emulation will not be perfect, you *must* not trust it. To be safe always t
         height: parent.height - panel.panelHeight
 
         onShownChanged: if (shown) greeter.forceActiveFocus()
-        
+
         onUnlocked: greeter.hide()
         onSelected: shell.background = greeter.model.get(uid).background;
 
@@ -500,7 +463,6 @@ This emulation will not be perfect, you *must* not trust it. To be safe always t
 
         Bottombar {
             theHud: hud
-            sideStageWidth: sideStage.width
             anchors.fill: parent
             enabled: !panel.indicators.shown
         }
