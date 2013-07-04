@@ -17,6 +17,7 @@
 import QtQuick 2.0
 import Ubuntu.Application 0.1
 import Ubuntu.Components 0.1
+import LightDM 0.1 as LightDM
 import "Dash"
 import "Greeter"
 import "Launcher"
@@ -26,6 +27,8 @@ import "Components"
 import "Components/Math.js" as MathLocal
 import "Bottombar"
 import "SideStage"
+import "Notifications"
+import Unity.Notifications 1.0 as NotificationBackend
 
 FocusScope {
     id: shell
@@ -36,7 +39,8 @@ FocusScope {
     height: tablet ? units.gu(100) : units.gu(71)
 
     property real edgeSize: units.gu(2)
-    property url background: shell.width >= units.gu(60) ? "graphics/tablet_background.jpg" : "graphics/phone_background.jpg"
+    property url default_background: shell.width >= units.gu(60) ? "graphics/tablet_background.jpg" : "graphics/phone_background.jpg"
+    property url background: default_background
     readonly property real panelHeight: panel.panelHeight
 
     property bool dashShown: dash.shown
@@ -65,7 +69,7 @@ FocusScope {
     }
 
     readonly property bool fullscreenMode: {
-        if (greeter.shown) {
+        if (greeter.shown || lockscreen.shown) {
             return false;
         } else if (mainStage.usingScreenshots) { // Window Manager animating so want to re-evaluate fullscreen mode
             return mainStage.switchingFromFullscreenToFullscreen;
@@ -80,21 +84,28 @@ FocusScope {
         target: applicationManager
         ignoreUnknownSignals: true
         onFocusRequested: {
+            // TODO: this should be protected to only unlock for certain applications / certain usecases
+            // potentially only in connection with a notification
+            greeter.hide();
             shell.activateApplication(desktopFile);
         }
     }
 
     function activateApplication(desktopFile, argument) {
         if (applicationManager) {
+            // For newly started applications, as it takes them time to draw their first frame
+            // we add a delay before we hide the animation screenshots to compensate.
+            var addDelay = !applicationManager.getApplicationFromDesktopFile(desktopFile);
+
             var application;
             application = applicationManager.activateApplication(desktopFile, argument);
             if (application == null) {
                 return;
             }
             if (application.stage == ApplicationInfo.MainStage || !sideStage.enabled) {
-                mainStage.activateApplication(desktopFile);
+                mainStage.activateApplication(desktopFile, addDelay);
             } else {
-                sideStage.activateApplication(desktopFile);
+                sideStage.activateApplication(desktopFile, addDelay);
             }
             stages.show();
         }
@@ -112,7 +123,7 @@ FocusScope {
             greeter.show()
         }
 
-    // i777 Menu Key (both i9100 and i777)
+        // Menu key
         if (event.key == Qt.Key_Menu) {
             if (hud.shown == true) {
                 hud.hide()
@@ -122,32 +133,19 @@ FocusScope {
             }
         }
 
-        // i777 Home Key
+        // Back key
         if (event.key == Qt.Key_Back) {
-            // Here's where I left off. I'm trying to mimic the close button in ToolBar.qml
-            // actionTriggered(HudClient.QuitToolBarAction)
-
-            // For now we'll let the home button lock the screen.
             greeter.show()
         }
 
-        // I'm using these to probe for the other two keys on the i777. So far no luck :(
-        if (event.key == Qt.Key_Search) {
-            greeter.show()
-        }
-
+        // Home key
         if (event.key == Qt.Key_Home) {
             hud.show()
-        }
-
-        if (event.key == Qt.Key_Period) {
-            greeter.show()
         }
     }
 
     Item {
         id: underlay
-
         anchors.fill: parent
         visible: !(panel.indicators.fullyOpened && shell.width <= panel.indicatorsMenuWidth)
                  && (stages.fullyHidden
@@ -171,7 +169,7 @@ FocusScope {
         Dash {
             id: dash
 
-            available: !greeter.shown
+            available: !greeter.shown && !lockscreen.shown
             hides: [stages, launcher, panel.indicators]
             shown: disappearingAnimationProgress !== 1.0
             enabled: disappearingAnimationProgress === 0.0
@@ -210,6 +208,7 @@ FocusScope {
 
             property bool fullyShown: shown && stages[stagesRevealer.boundProperty] == stagesRevealer.openedValue
                                       && parent.x == 0
+
             property bool fullyHidden: !shown && stages[stagesRevealer.boundProperty] == stagesRevealer.closedValue
             available: !greeter.shown
             hides: [launcher, panel.indicators]
@@ -316,7 +315,7 @@ FocusScope {
                             && sideStage[sideStageRevealer.boundProperty] == sideStageRevealer.openedValue
                 shouldUseScreenshots: !fullyShown || mainStage.usingScreenshots || sideStageRevealer.pressed
 
-                available: !greeter.shown && enabled
+                available: !greeter.shown && !lockscreen.shown && enabled
                 hides: [launcher, panel.indicators]
                 shown: false
                 showAnimation: StandardAnimation { property: "x"; duration: 350; to: sideStageRevealer.openedValue; easing.type: Easing.OutQuint }
@@ -367,6 +366,46 @@ FocusScope {
         orientation: Qt.Horizontal
     }
 
+    Lockscreen {
+        id: lockscreen
+        hides: [launcher, panel.indicators, hud]
+        shown: false
+        enabled: true
+        showAnimation: StandardAnimation { property: "opacity"; to: 1 }
+        hideAnimation: StandardAnimation { property: "opacity"; to: 0 }
+        y: panel.panelHeight
+        x: required ? 0 : - width
+        width: parent.width
+        height: parent.height - panel.panelHeight
+        background: shell.background
+
+        onUnlocked: lockscreen.hide()
+        onCancel: greeter.show()
+
+        Component.onCompleted: {
+            if (LightDM.Users.count == 1) {
+                LightDM.Greeter.authenticate(LightDM.Users.data(0, LightDM.UserRoles.NameRole))
+            }
+        }
+    }
+
+    Connections {
+        target: LightDM.Greeter
+
+        onShowPrompt: {
+            if (LightDM.Users.count == 1) {
+                // TODO: There's no better way for now to determine if its a PIN or a passphrase.
+                if (text == "PIN") {
+                    lockscreen.alphaNumeric = false
+                } else {
+                    lockscreen.alphaNumeric = true
+                }
+                lockscreen.placeholderText = i18n.tr("Please enter %1").arg(text);
+                lockscreen.show();
+            }
+        }
+    }
+
     Greeter {
         id: greeter
 
@@ -375,16 +414,49 @@ FocusScope {
         shown: true
         showAnimation: StandardAnimation { property: "x"; to: greeterRevealer.openedValue }
         hideAnimation: StandardAnimation { property: "x"; to: greeterRevealer.closedValue }
-
         y: panel.panelHeight
         width: parent.width
         height: parent.height - panel.panelHeight
 
-        onShownChanged: if (shown) greeter.forceActiveFocus()
+        property var previousMainApp: null
+        property var previousSideApp: null
+
+        onShownChanged: {
+            if (shown) {
+                lockscreen.reset();
+                // If there is only one user, we start authenticating with that one here.
+                // If there are more users, the Greeter will handle that
+                if (LightDM.Users.count == 1) {
+                    LightDM.Greeter.authenticate(LightDM.Users.data(0, LightDM.UserRoles.NameRole));
+                }
+                greeter.forceActiveFocus();
+                // FIXME: *FocusedApplication are not updated when unfocused, hence the need to check whether
+                // the stage was actually shown
+                if (mainStage.fullyShown) greeter.previousMainApp = applicationManager.mainStageFocusedApplication;
+                if (sideStage.fullyShown) greeter.previousSideApp = applicationManager.sideStageFocusedApplication;
+                applicationManager.unfocusCurrentApplication();
+            } else {
+                if (greeter.previousMainApp) {
+                    applicationManager.focusApplication(greeter.previousMainApp);
+                    greeter.previousMainApp = null;
+                }
+                if (greeter.previousSideApp) {
+                    applicationManager.focusApplication(greeter.previousSideApp);
+                    greeter.previousSideApp = null;
+                }
+            }
+        }
 
         onUnlocked: greeter.hide()
-        onSelected: shell.background = greeter.model.get(uid).background;
+        onSelected: {
+            var bgPath = greeter.model.data(uid, LightDM.UserRoles.BackgroundPathRole)
+            shell.background = bgPath ? bgPath : default_background
+        }
+    }
 
+    InputFilterArea {
+        anchors.fill: parent
+        blockInput: greeter.shown || lockscreen.shown
     }
 
     Revealer {
@@ -411,10 +483,9 @@ FocusScope {
             indicatorsMenuWidth: parent.width > units.gu(60) ? units.gu(40) : parent.width
             indicators {
                 hides: [launcher]
-                available: !greeter.shown
             }
             fullscreenMode: shell.fullscreenMode
-            searchEnabled: !greeter.shown
+            searchVisible: !greeter.shown && !lockscreen.shown
 
             InputFilterArea {
                 anchors.fill: parent
@@ -428,7 +499,7 @@ FocusScope {
             width: parent.width > units.gu(60) ? units.gu(40) : parent.width
             height: parent.height
 
-            available: !greeter.shown && !panel.indicators.shown
+            available: !greeter.shown && !panel.indicators.shown && !lockscreen.shown
             shown: false
             showAnimation: StandardAnimation { property: "y"; duration: hud.showableAnimationDuration; to: 0; easing.type: Easing.Linear }
             hideAnimation: StandardAnimation { property: "y"; duration: hud.showableAnimationDuration; to: hudRevealer.closedValue; easing.type: Easing.Linear }
@@ -465,48 +536,8 @@ FocusScope {
             theHud: hud
             anchors.fill: parent
             enabled: !panel.indicators.shown
-        }
-
-        Launcher {
-            id: launcher
-
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: parent.width
-            applicationFocused: stages.shown
-            shortcutsWidth: units.gu(9)
-            shortcutsThreshold: shell.edgeSize
-            iconPath: "graphics/applicationIcons"
-            available: !greeter.locked
-            onDashItemSelected: {
-                greeter.hide()
-                // Animate if moving between application and dash
-                if (!stages.shown) {
-                    dash.setCurrentLens("home.lens", true, false)
-                } else {
-                    dash.setCurrentLens("home.lens", false, false)
-                }
-                stages.hide();
-            }
-            onDash: {
-                greeter.hide()
-                stages.hide();
-            }
-            onLauncherApplicationSelected:{
-                greeter.hide()
-                shell.activateApplication(name)
-            }
-            onStateChanged: {
-                if (state == "spreadMoving") {
-                    dash.setCurrentLens("applications.lens", false, true)
-                }
-            }
-            onShownChanged: {
-                if (shown) {
-                    panel.indicators.hide()
-                    hud.hide()
-                }
-            }
+            applicationIsOnForeground: applicationManager.mainStageFocusedApplication
+                                    || applicationManager.sideStageFocusedApplication
         }
 
         InputFilterArea {
@@ -516,7 +547,72 @@ FocusScope {
                 bottom: parent.bottom
                 left: parent.left
             }
-            width: launcher.shortcutsWidth
+            width: launcher.width
+        }
+
+        Launcher {
+            id: launcher
+
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: parent.width
+            dragAreaWidth: shell.edgeSize
+            available: !greeter.locked
+            teasing: available && greeter.leftTeaserPressed
+            onDashItemSelected: {
+                greeter.hide()
+                // Animate if moving between application and dash
+                if (!stages.shown) {
+                    dash.setCurrentScope("home.scope", true, false)
+                } else {
+                    dash.setCurrentScope("home.scope", false, false)
+                }
+                stages.hide();
+            }
+            onDash: {
+                if (stages.shown) {
+                    dash.setCurrentScope("applications.scope", true, false)
+                    stages.hide();
+                    launcher.hide();
+                }
+            }
+            onLauncherApplicationSelected:{
+                greeter.hide()
+                shell.activateApplication(desktopFile)
+            }
+            onShownChanged: {
+                if (shown) {
+                    panel.indicators.hide()
+                    hud.hide()
+                }
+            }
+        }
+
+        Notifications {
+            id: notifications
+
+            model: NotificationBackend.Model
+            anchors {
+                top: parent.top
+                right: parent.right
+                bottom: parent.bottom
+                leftMargin: units.gu(1)
+                rightMargin: units.gu(1)
+                topMargin: panel.panelHeight + units.gu(1)
+            }
+            states: [
+                State {
+                    name: "narrow"
+                    when: overlay.width <= units.gu(60)
+                    AnchorChanges { target: notifications; anchors.left: parent.left }
+                },
+                State {
+                    name: "wide"
+                    when: overlay.width > units.gu(60)
+                    AnchorChanges { target: notifications; anchors.left: undefined }
+                    PropertyChanges { target: notifications; width: units.gu(38) }
+                }
+            ]
         }
     }
 
@@ -540,6 +636,12 @@ FocusScope {
         }
         width: shell.edgeSize
         blockInput: true
+    }
+
+    Binding {
+        target: i18n
+        property: "domain"
+        value: "unity8"
     }
 
     //FIXME: This should be handled in the input stack, keyboard shouldnt propagate
