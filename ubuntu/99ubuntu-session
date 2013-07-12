@@ -1,16 +1,16 @@
 #!/system/bin/sh
 
 echo "Copy ubuntu-session files"
-cp /system/Shell.qml /data/ubuntu/usr/share/qml-phone-shell/Shell.qml
+#cp /system/Shell.qml /data/ubuntu/usr/share/qml-phone-shell/Shell.qml
 cp /system/set_volume /data/ubuntu/usr/bin/set_volume
 cp /system/rc.local /data/ubuntu/etc/rc.local
-chmod 755 /data/ubuntu/usr/share/qml-phone-shell/Shell.qml
+#chmod 755 /data/ubuntu/usr/share/qml-phone-shell/Shell.qml
 chmod 755 /data/ubuntu/etc/rc.local
 
 echo "Remove ubuntu-session files from system"
 mount -o rw,remount /system
 rm /system/etc/init.d/99ubuntu-session
-rm /system/Shell.qml
+#rm /system/Shell.qml
 rm /system/set_volume
 rm /system/rc.local
 mount -o ro,remount /system
