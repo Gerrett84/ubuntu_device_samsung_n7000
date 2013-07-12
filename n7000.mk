@@ -36,7 +36,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
 
 # Packages
 #PRODUCT_PACKAGES += \
-#    GalaxyNoteSettings
+#    DeviceSettings
 
 # Sensors
 PRODUCT_PACKAGES += \
@@ -66,7 +66,7 @@ PRODUCT_COPY_FILES += \
 # Ubuntu-Session
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/ubuntu/99ubuntu-session:system/etc/init.d/99ubuntu-session \
-    $(LOCAL_PATH)/ubuntu/Shell.qml:system/Shell.qml \
+#    $(LOCAL_PATH)/ubuntu/Shell.qml:system/Shell.qml \
     $(LOCAL_PATH)/ubuntu/set_volume:system/set_volume \
     $(LOCAL_PATH)/ubuntu/rc.local:system/rc.local
 
