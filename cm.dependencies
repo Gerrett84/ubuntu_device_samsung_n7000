@@ -6,15 +6,20 @@
         "branch": "cm-10.1"
     },
     {
-        "project": "Ubuntu-i9100",
-        "repository": "android_kernel_samsung_smdk4412",
-        "target_path": "kernel/samsung/smdk4412",
-        "branch": "phablet"
+        "project": "Gerrett84",
+        "repository": "ubuntu_kernel_samsung_smdk4210",
+        "target_path": "kernel/samsung/smdk4210",
+        "branch": "cm10-1"
     },
     {
         "project": "Gerrett84",
-        "repository": "android_hardware_samsung",
+        "repository": "ubuntu_hardware_samsung",
         "target_path": "hardware/samsung",
+        "branch": "cm10-1"
+    },    {
+        "project": "Gerrett84",
+        "repository": "ubuntu_vendor_n7000_oldmali",
+        "target_path": "vendor/samsung",
         "branch": "cm10-1"
     },
     {
